@@ -2,6 +2,16 @@ import { getStore } from "@netlify/blobs";
 import crypto from "node:crypto";
 import { isAdminRequest } from "./shared-auth.mjs";
 const store = getStore("profile-os-media");
+
+const sameOrigin = (request) => {
+  const origin = request.headers.get("origin");
+  if (!origin) return true;
+  try {
+    return new URL(origin).host === new URL(request.url).host;
+  } catch {
+    return false;
+  }
+};
 export default async (request) => {
   const url = new URL(request.url);
   if (request.method === "GET") {
@@ -20,7 +30,7 @@ export default async (request) => {
     await store.delete(key); return Response.json({ ok: true });
   }
   const length = Number(request.headers.get("content-length") || 0);
-  if (length > 5_500_000) return Response.json({ error: "File too large. Keep shared uploads under 4 MB." }, { status: 413 });
+  if (length > 6_000_000) return Response.json({ error: "File too large. Keep shared uploads under 4 MB." }, { status: 413 });
   let body;
   try { body = await request.json(); } catch { return Response.json({ error: "Invalid upload" }, { status: 400 }); }
   if (!body.name || !body.type || !body.data || !/^[a-zA-Z0-9._-]{1,100}$/.test(body.name)) return Response.json({ error: "Invalid file details" }, { status: 400 });
