@@ -75,7 +75,9 @@ export default function SystemShell() {
       if(cfg.lockMedia)setCustomLockSrc(cfg.lockMedia);
       if(cfg.homeMedia)setCustomHomeSrc(cfg.homeMedia);
       if(cfg.bootMedia)setBootVideoSrc(cfg.bootMedia);
-    }).catch(()=>{});
+    }).catch(()=>{}).finally(()=>{
+      if(alive) setGlobalConfigLoaded(true);
+    });
     return()=>{alive=false};
   },[]);
   const publishGlobalConfig=async()=>{
