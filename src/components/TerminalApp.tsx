@@ -22,12 +22,10 @@ export default function TerminalApp({ onHome, onTheme, onOpenApp, onMediaCommand
   const [history,setHistory] = useState<string[]>([]);
   const [historyIndex,setHistoryIndex] = useState(-1);
   const [themeIndex,setThemeIndex] = useState(0);
-  const [trackIndex,setTrackIndex] = useState(0);
   const [playing,setPlaying] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const outputRef = useRef<HTMLDivElement>(null);
   const themes = ["Violet / Cyan","Matrix Green","Amber Terminal","Arctic Blue"];
-  const tracks = ["track-01.mp3","track-02.mp3","track-03.mp3"];
   const paletteClass = ["term-violet","term-green","term-amber","term-blue"][themeIndex];
   useEffect(()=>{ outputRef.current?.scrollTo({top:outputRef.current.scrollHeight,behavior:"smooth"}); },[entries]);
   const suggestions = useMemo(()=>["help","neofetch","projects","skills","socials","music"],[]);
@@ -61,11 +59,11 @@ export default function TerminalApp({ onHome, onTheme, onOpenApp, onMediaCommand
         break;
       }
       case "home": output="Returning to home screen…"; action=onHome; tone="good"; break;
-      case "music": case "play": case "resume": setPlaying(true); onMediaCommand("play"); output=`PLAYBACK REQUESTED\n  ${tracks[trackIndex]}\n  Add your own audio files to public/music/ to enable playback.`; tone="good"; action=()=>onOpenApp("music"); break;
+      case "music": case "play": case "resume": setPlaying(true); onMediaCommand("play"); output="Opening your music library. Choose a track to start playback."; tone="good"; action=()=>onOpenApp("music"); break;
       case "pause": setPlaying(false); onMediaCommand("pause"); output="Playback paused."; break;
-      case "next": setTrackIndex(v=>(v+1)%tracks.length); onMediaCommand("next"); output=`Next track: ${tracks[(trackIndex+1)%tracks.length]}`; break;
-      case "previous": setTrackIndex(v=>(v+tracks.length-1)%tracks.length); onMediaCommand("previous"); output=`Previous track: ${tracks[(trackIndex+tracks.length-1)%tracks.length]}`; break;
-      case "nowplaying": output=`${playing?"▶ PLAYING":"Ⅱ PAUSED"}  ${tracks[trackIndex]}\nLocal audio files: public/music/${tracks[trackIndex]}`; break;
+      case "next": onMediaCommand("next"); output="Skipping to the next playlist track."; break;
+      case "previous": onMediaCommand("previous"); output="Returning to the previous playlist track."; break;
+      case "nowplaying": output=`${playing?"▶ PLAY REQUESTED":"Ⅱ PLAYER"}\nOpen the Music app to view the current track and playback controls.`; break;
       case "theme": setThemeIndex(v=>(v+1)%themes.length); output=`Terminal theme → ${themes[(themeIndex+1)%themes.length]}`; tone="good"; break;
       case "showcase": case "aesthetic": output=`PROFILE.OS VISUAL SYSTEM\n  01  NOCTURNE     deep ink · violet glow · soft grain\n  02  AURORA       warm haze · sea glass · atmospheric motion\n  03  TERMINAL     mono typography · phosphor accents\n  04  MOTION       spring transitions · gesture navigation\n  Type theme to cycle terminal palettes.`; tone="accent"; break;
       case "ascii": output="     /\\_/\\\n    ( o.o )\n     > ^ <\n  just a curious cat in your terminal"; tone="accent"; break;

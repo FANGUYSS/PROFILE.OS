@@ -142,3 +142,24 @@ button:focus-visible,a:focus-visible,input:focus-visible{outline:2px solid var(-
 }
 .lockClock div{text-shadow:0 2px 18px rgba(0,0,0,.16)}
 .lockClock p{color:rgba(255,255,255,.82);text-shadow:0 1px 10px rgba(0,0,0,.18)}
+
+/* PROFILE.OS music library and notification centre */
+.songAdminInfo{display:flex;align-items:center;gap:10px;min-width:0}
+.songAdminInfo>span{display:flex;flex-direction:column;min-width:0}
+.songCoverThumb,.musicListCover{width:38px;height:38px;object-fit:cover;border-radius:9px;flex:none}
+.songCoverEmpty,.musicListGlyph{display:grid;place-items:center;background:rgba(255,255,255,.08);font-size:20px}
+.nowPlayingCard{display:flex;align-items:center;gap:16px;padding:14px;margin:18px 0;border:1px solid var(--line,rgba(255,255,255,.12));border-radius:18px;background:rgba(255,255,255,.06)}
+.nowPlayingCover{width:88px;height:88px;object-fit:cover;border-radius:13px;flex:none}
+.coverPlaceholder{display:grid;place-items:center;background:rgba(255,255,255,.1);font-size:34px}
+.nowPlayingMeta{display:flex;flex-direction:column;gap:6px;min-width:0}
+.nowPlayingMeta small,.nowPlayingMeta span{font-size:10px;letter-spacing:.12em;opacity:.65}
+.nowPlayingMeta strong{font-size:15px;overflow-wrap:anywhere}
+.musicListCover,.musicListGlyph{width:42px;height:42px}
+.musicTrack.activeMusicTrack{border-color:rgba(160,130,255,.55);background:rgba(140,110,255,.09)}
+.emptyMusic,.emptyNotifications{display:flex;flex-direction:column;align-items:center;gap:9px;padding:28px 18px;text-align:center;opacity:.8}
+.emptyMusic>span{font-size:38px}
+.emptyMusic p,.emptyNotifications p{max-width:320px;font-size:12px;line-height:1.6}
+.notificationHeaderActions{display:flex;justify-content:space-between;align-items:center;padding:8px 2px 14px;font-size:11px;opacity:.8}
+.notificationHeaderActions button{border:0;background:transparent;color:inherit;font:inherit;padding:8px}
+.notificationButton{width:100%;text-align:left;cursor:pointer;font:inherit;color:inherit}
+.notificationButton:focus-visible,.notificationHeaderActions button:focus-visible{outline:2px solid currentColor;outline-offset:3px}

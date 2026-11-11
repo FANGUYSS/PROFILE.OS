@@ -28,7 +28,16 @@ export default function SystemShell() {
   const [brightness,setBrightness] = useState(85);
   const [volume,setVolume] = useState(65);
   const [musicTrack,setMusicTrack] = useState(0);
-  const [customSongs,setCustomSongs] = useState<Array<{name:string;url:string;key:string}>>([]);
+  const [isPlaying,setIsPlaying] = useState(false);
+  const [customSongs,setCustomSongs] = useState<Array<{name:string;url:string;key:string;coverUrl?:string}>>([]);
+  const [notifications,setNotifications] = useState<Array<{id:number;title:string;message:string;time:string;target?:Screen}>>([]);
+  const bundledSongs = [
+    {name:"Night Drive",url:"/music/track-01.mp3",key:"bundled-1",coverUrl:"/music/artwork/track-01.webp"},
+    {name:"After Hours",url:"/music/track-02.mp3",key:"bundled-2",coverUrl:"/music/artwork/track-02.webp"},
+    {name:"Focus Mode",url:"/music/track-03.mp3",key:"bundled-3",coverUrl:"/music/artwork/track-03.webp"}
+  ];
+  const playlist = [...bundledSongs,...customSongs];
+  const activeSong = playlist[musicTrack] || null;
   const [customIcons,setCustomIcons] = useState<Record<string,string>>({});
   const [customApps,setCustomApps] = useState<Array<{name:string;url:string;icon?:string}>>([]);
   const [newAppName,setNewAppName] = useState("");
@@ -96,6 +105,9 @@ export default function SystemShell() {
   };
   const adminLogout=async()=>{await fetch("/.netlify/functions/admin-logout",{method:"POST",credentials:"include"});setAdminAuthenticated(false);setAdminMessage("Admin session ended.");};
   useEffect(()=>{if(globalConfigLoaded&&!bootVideoSrc){const intro=window.setTimeout(()=>{setScreen("lock");setBootDone(true)},2200);return()=>window.clearTimeout(intro)}},[globalConfigLoaded,bootVideoSrc]);
+  const pushNotification=(title:string,message:string,target?:Screen)=>{
+    setNotifications(v=>[{id:Date.now()+Math.random(),title,message,time:new Date().toLocaleTimeString(undefined,{hour:"numeric",minute:"2-digit"}),target},...v].slice(0,30));
+  };
   const uploadSharedFile=async(file:File,prefix:string)=>{
     if(!adminAuthenticated)throw new Error("Sign in as admin before uploading shared media.");
     if(file.size>4*1024*1024)throw new Error("Shared uploads are limited to 4 MB per file on Netlify.");
@@ -106,11 +118,44 @@ export default function SystemShell() {
   };
   const addSongs=async(files:FileList|null)=>{
     if(!files?.length)return;
-    try{const added=[] as Array<{name:string;url:string;key:string}>;for(const file of Array.from(files)){if(!file.type.startsWith("audio/"))continue;const url=await uploadSharedFile(file,"song");added.push({name:file.name,url,key:url});}setCustomSongs(v=>[...v,...added]);setUploadMessage(`${added.length} song(s) uploaded to shared storage. Publish settings to make them visible to everyone.`);}
-    catch(e){setUploadMessage(e instanceof Error?e.message:"Could not upload songs.");}
+    try{
+      const added:Array<{name:string;url:string;key:string;coverUrl?:string}>=[];
+      for(const file of Array.from(files)){
+        if(!file.type.startsWith("audio/"))continue;
+        const url=await uploadSharedFile(file,"song");
+        added.push({name:file.name.replace(/\\.[^.]+$/,""),url,key:url});
+      }
+      if(added.length){
+        const firstNewIndex=playlist.length;
+        setCustomSongs(v=>[...v,...added]);
+        setMusicTrack(firstNewIndex);
+        setUploadMessage(`${added.length} song(s) uploaded. Publish settings to share them.`);
+        pushNotification("Music library updated",`${added.length} track(s) added to your playlist.`,"music");
+      }else setUploadMessage("Choose supported audio files.");
+    }catch(e){setUploadMessage(e instanceof Error?e.message:"Could not upload songs.");}
   };
-  const removeSong=async(key:string)=>{setCustomSongs(v=>v.filter(x=>x.key!==key));setUploadMessage("Song removed from the draft. Publish settings to apply globally.");};
-  const playCustomSong=(song:{name:string;url:string;key:string})=>{if(audioRef.current){audioRef.current.src=song.url;void audioRef.current.play().catch(()=>{});}};
+  const removeSong=async(key:string)=>{
+    setCustomSongs(v=>v.filter(song=>song.key!==key));
+    const removedIndex=playlist.findIndex(song=>song.key===key);
+    if(removedIndex===musicTrack){audioRef.current?.pause();setIsPlaying(false);setMusicTrack(0);}
+    else if(removedIndex>=0&&removedIndex<musicTrack)setMusicTrack(v=>Math.max(0,v-1));
+    setUploadMessage("Song removed from the draft. Publish settings to apply globally.");
+    pushNotification("Track removed","The track was removed from the draft playlist.","music");
+  };
+  const playSong=(song:{name:string;url:string;key:string;coverUrl?:string})=>{
+    const index=playlist.findIndex(item=>item.key===song.key);
+    if(index<0)return;
+    setMusicTrack(index);
+    window.setTimeout(()=>{void audioRef.current?.play().then(()=>setIsPlaying(true)).catch(()=>{});},120);
+  };
+  const saveSongCover=async(key:string,file:File)=>{
+    if(!file.type.startsWith("image/")){setUploadMessage("Choose an image for the cover.");return;}
+    try{
+      const coverUrl=await uploadSharedFile(file,"cover");
+      setCustomSongs(v=>v.map(song=>song.key===key?{...song,coverUrl}:song));
+      setUploadMessage("Cover artwork uploaded. Publish settings to share it.");
+    }catch(e){setUploadMessage(e instanceof Error?e.message:"Cover upload failed.");}
+  };
   const saveAppIcon=async(app:string,file:File)=>{
     if(!file.type.startsWith("image/"))return;
     try{const url=await uploadSharedFile(file,`icon-${app.toLowerCase().replace(/[^a-z0-9]/g,"-")}`);setCustomIcons(v=>({...v,[app]:url}));setUploadMessage(`${app} icon uploaded. Publish settings to share it with visitors.`);}
@@ -167,41 +212,68 @@ export default function SystemShell() {
     window.addEventListener("keydown",key); return ()=>window.removeEventListener("keydown",key);
   },[panel,screen]);
 
-  const openApp=(app:Screen)=>setScreen(app);
+  const openApp=(app:Screen)=>{
+    setScreen(app);
+    pushNotification("App opened",`${app[0].toUpperCase()+app.slice(1)} is now active.`,app);
+  };
   const controlMusic=(action:"play"|"pause"|"next"|"previous")=>{
-    if(action==="pause"){audioRef.current?.pause();return;}
-    if(action==="next"||action==="previous") setMusicTrack(v=>(v+(action==="next"?1:2))%3);
-    window.setTimeout(()=>{void audioRef.current?.play().catch(()=>{});},80);
+    if(action==="pause"){
+      audioRef.current?.pause();setIsPlaying(false);
+      pushNotification("Playback paused",activeSong?.name||"Music player","music");
+      return;
+    }
+    if(!playlist.length)return;
+    if(action==="next"||action==="previous"){
+      setMusicTrack(v=>(v+(action==="next"?1:playlist.length-1))%playlist.length);
+    }
+    window.setTimeout(()=>{
+      void audioRef.current?.play().then(()=>setIsPlaying(true)).catch(()=>{
+        pushNotification("Playback unavailable","The browser could not start this audio file.","music");
+      });
+    },120);
   };
   useEffect(()=>{if(audioRef.current){audioRef.current.volume=volume/100;}},[volume]);
-  useEffect(()=>{if(audioRef.current){audioRef.current.load();}},[musicTrack]);
+  useEffect(()=>{
+    const audio=audioRef.current;
+    if(!audio)return;
+    audio.load();
+    if(isPlaying)void audio.play().catch(()=>setIsPlaying(false));
+  },[musicTrack]);
   const handleTouchStart=(e:React.TouchEvent)=>{
+    const target=e.target as HTMLElement;
+    if(target.closest("button,a,input,textarea,select,label,[role='button'],video,audio")){touchStart.current={x:0,y:0,time:0};return;}
     const touch=e.touches[0];
     touchStart.current={x:touch.clientX,y:touch.clientY,time:Date.now()};
   };
   const handleTouchEnd=(e:React.TouchEvent)=>{
+    if(!touchStart.current.time)return;
     const touch=e.changedTouches[0];
     const dx=touch.clientX-touchStart.current.x;
     const dy=touch.clientY-touchStart.current.y;
-    const absX=Math.abs(dx), absY=Math.abs(dy);
+    const absX=Math.abs(dx),absY=Math.abs(dy);
     const elapsed=Date.now()-touchStart.current.time;
-    // Ignore taps, tiny movements and slow drags. Use the gesture's start/end delta,
-    // never the screen centre, to decide swipe direction.
-    if(Math.max(absX,absY)<55 || elapsed>900 || absX===absY) return;
-    if(absY>absX){
-      if(touchStart.current.y<85 && dy>65){setPanel("notifications");return}
-      if(panel && dy < -65){setPanel(null);return}
-      if(screen==="lock" && dy < -65){setScreen("home");return}
-      if(screen==="widgets" && dy < -65){setScreen("drawer");return}
-      if(screen==="widgets" && dy > 65){setScreen("home");return}
-      if(screen==="drawer" && dy > 65){setScreen("widgets");return}
+    touchStart.current.time=0;
+    if(Math.max(absX,absY)<55||elapsed>1000||absX===absY)return;
+    if(panel){
+      if(absY>absX&&dy< -55){setPanel(null);return;}
+      if(absY>absX&&dy>55&&touchStart.current.y<100){setPanel("notifications");return;}
+      if(absX>absY&&panel==="notifications"&&dx< -65){setPanel("control");return;}
+      if(absX>absY&&panel==="control"&&dx>65){setPanel("notifications");return;}
       return;
     }
-    if(panel && absX>65){setPanel("control");return}
-    if(screen==="home" && dx < -65){setScreen("widgets");return}
-    if(screen==="widgets" && dx > 65){setScreen("home");return}
-    if(screen==="widgets" && absX>65){setPage(current=>Math.max(0,Math.min(1,current+(dx<0?1:-1))));}
-    if(screen==="drawer" && absX>65){setAppPage(current=>Math.max(0,Math.min(1,current+(dx<0?1:-1))));}
+    if(absY>absX){
+      if(touchStart.current.y<85&&dy>65){setPanel("notifications");return;}
+      if(screen==="lock"&&dy< -65){setScreen("home");return;}
+      if(screen==="home"&&dy< -65){setScreen("drawer");return;}
+      if(screen==="widgets"&&dy< -65){setScreen("drawer");return;}
+      if(screen==="widgets"&&dy>65){setScreen("home");return;}
+      if(screen==="drawer"&&dy>65){setScreen("widgets");return;}
+      return;
+    }
+    if(screen==="home"&&dx< -65){setScreen("widgets");return;}
+    if(screen==="widgets"&&dx>65){setScreen("home");return;}
+    if(screen==="widgets"&&absX>65){setPage(current=>Math.max(0,Math.min(1,current+(dx<0?1:-1))));return;}
+    if(screen==="drawer"&&absX>65){setAppPage(current=>Math.max(0,Math.min(1,current+(dx<0?1:-1))));}
   };
 
   const activeLock = screen==="boot" || screen==="lock";
@@ -211,7 +283,10 @@ export default function SystemShell() {
 
   return <main className="osRoot" onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd} style={{filter:`brightness(${brightness/100})`}}>
     <Wallpaper id={activeLock ? lockWallpaper : homeWallpaper} active={screen!=="boot" && (activeLock || activeHome)} customSrc={activeLock ? customLockSrc : customHomeSrc} dim={screen === "lock" ? .08 : 0}/>
-    <audio ref={audioRef} src={`/music/track-0${musicTrack+1}.mp3`} preload="none" onEnded={()=>setMusicTrack(v=>(v+1)%3)} />
+    <audio ref={audioRef} src={activeSong?.url} preload="metadata" onPlay={()=>setIsPlaying(true)} onPause={()=>setIsPlaying(false)} onEnded={()=>{
+      if(playlist.length>1){setMusicTrack(v=>(v+1)%playlist.length);pushNotification("Now playing",playlist[(musicTrack+1)%playlist.length]?.name||"Next track","music");}
+      else setIsPlaying(false);
+    }} />
     <div className="grain" />
     <header className="statusBar">
       <span>{timeText}</span><span className="statusRight"><Signal size={15}/><Wifi size={15}/><Battery size={17}/></span>
@@ -250,16 +325,15 @@ export default function SystemShell() {
         {screen==="skills" && <div className="contentView"><p className="eyebrow">CAPABILITIES / TOOLBOX</p><h1>What I<br/>work with<span>.</span></h1><p>Tools and technologies I use while learning, experimenting and building.</p>{["JavaScript & TypeScript","React & Next.js","Node.js & APIs","HTML, CSS & responsive UI","Discord bots & integrations","Git, GitHub & deployment","Linux, Termux & CLI workflows"].map((v,i)=><div className="listRow" key={v}><span>0{i+1}</span><strong>{v}</strong><span>↗</span></div>)}</div>}
         {screen==="experience" && <div className="contentView"><p className="eyebrow">BUILD LOG / JOURNEY</p><h1>Learning by<br/>building<span>.</span></h1><p>A project-led journey through web development, automation, communities and open-source experiments.</p>{[["CURRENT","PROFILE.OS — personal operating system portfolio"],["RECENT","Open-source experiments — bots, web apps and developer tools"],["ONGOING","Web apps, APIs, hosting and deployment experiments"],["ALWAYS","Learning, shipping, debugging and iterating"]].map(([d,v])=><div className="listRow" key={d}><span>{d}</span><strong>{v}</strong></div>)}</div>}
         {screen==="social" && <div className="contentView"><p className="eyebrow">PUBLIC CHANNELS / 01—04</p><h1>Find me<br/>online<span>.</span></h1><div className="socialTerminal"><pre>┌─ SOCIALS // PUBLIC CHANNELS ─────────┐</pre><a href="https://github.com/FANGUYSS" target="_blank" rel="noreferrer"><strong>GitHub</strong><span>github.com/FANGUYSS ↗</span></a><a href="https://youtube.com/@fanguyss" target="_blank" rel="noreferrer"><strong>YouTube</strong><span>youtube.com/@fanguyss ↗</span></a><a href="https://instagram.com/fanguyss" target="_blank" rel="noreferrer"><strong>Instagram</strong><span>instagram.com/fanguyss ↗</span></a><a href="mailto:fanguyss523@gmail.com"><strong>Email</strong><span>fanguyss523@gmail.com ↗</span></a><pre>└────────────────────────────────────┘</pre></div></div>}
-        {screen==="settings" && <div className="settingsView"><p className="eyebrow">PERSONALIZE YOUR DEVICE</p><h3>Administrator</h3>{!adminAuthenticated?<div className="wallpaperGate"><p>Sign in to manage the shared PROFILE.OS experience.</p><input type="password" value={adminPassword} onChange={e=>setAdminPassword(e.target.value)} placeholder="Admin password" autoComplete="current-password"/><button onClick={()=>void adminLogin()}>Secure admin login</button><small>{adminMessage}</small></div>:<><p className="settingHint">Authenticated admin session. Changes can be published to every visitor.</p><button className="panelAction" onClick={()=>void publishGlobalConfig()} disabled={globalSaving}>{globalSaving?"Publishing…":"Publish settings to all visitors"}</button><button className="panelAction" onClick={()=>void adminLogout()}>Sign out admin</button><small>{adminMessage}</small><div className="settingRow"><div><strong>Appearance</strong><small>Adaptive dark / light theme</small></div><button className="switch" onClick={()=>setDark(v=>!v)}>{dark?"Dark":"Light"}</button></div><div className="settingRow"><div><strong>Brightness</strong><small>Interface brightness</small></div><input type="range" min="45" max="100" value={brightness} onChange={e=>setBrightness(+e.target.value)}/></div><h3>App icon studio</h3><p className="settingHint">Choose a custom image for any built-in or website app. Icons are uploaded to shared Netlify storage.</p><div className="iconStudio">{["Terminal","Projects","About","Skills","Experience","Social","Music","Settings","YouTube","GitHub","Instagram","Email","Browser",...customApps.map(a=>a.name)].map(name=><div className="iconStudioRow" key={name}><div className="iconStudioPreview">{customIcons[name]?<img src={customIcons[name]} alt=""/>:<span>{name.slice(0,1)}</span>}<strong>{name}</strong></div><label className="uploadButton">Change icon<input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" onChange={e=>{const f=e.target.files?.[0];if(f)saveAppIcon(name,f);e.currentTarget.value="";}}/></label><button className="miniReset" onClick={()=>setCustomIcons(v=>{const next={...v};delete next[name];return next;})}>Reset</button></div>)}</div><h3>Website apps</h3><p className="settingHint">Add shortcuts only for websites with a real URL. They will open directly from your app drawer.</p><div className="websiteAppForm"><input value={newAppName} onChange={e=>setNewAppName(e.target.value)} placeholder="App name"/><input value={newAppUrl} onChange={e=>setNewAppUrl(e.target.value)} placeholder="https://example.com" inputMode="url"/><button onClick={addWebsiteApp}>Add website app</button></div>{customApps.map(app=><div className="settingRow" key={app.url}><div><strong>{app.name}</strong><small>{app.url}</small></div><button className="miniReset" onClick={()=>setCustomApps(v=>v.filter(x=>x.url!==app.url))}>Remove</button></div>)}<h3>Music library</h3><p className="settingHint">Add audio files directly from this panel. Uploaded to shared storage (4 MB per file).</p><label className="uploadButton songUpload">＋ Add songs<input type="file" accept="audio/*" multiple onChange={e=>{void addSongs(e.target.files);e.currentTarget.value="";}}/></label>{customSongs.map(song=><div className="settingRow" key={song.key}><div><strong>{song.name}</strong><small>Local music library</small></div><button className="miniReset" onClick={()=>playCustomSong(song)}>Play</button><button className="miniReset" onClick={()=>void removeSong(song.key)}>Remove</button></div>)}<h3>Bundled wallpapers</h3><div className="wallpaperChoices">{[{id:"nocturne",name:"Nocturne"},{id:"aurora",name:"Aurora Drift"}].map(w=><div className="wallChoice" key={w.id}><strong>{w.name}</strong><div><button onClick={()=>{setLockWallpaper(w.id as WallpaperId);void clearCustomWallpaper("lock")}}>Set lock</button><button onClick={()=>{setHomeWallpaper(w.id as WallpaperId);void clearCustomWallpaper("home")}}>Set home</button></div></div>)}</div><h3>Personal video wallpapers</h3><p className="settingHint">Upload MP4 or WebM · up to 4 MB per file · shared with all visitors after publishing.</p><div className="wallpaperChoices"><div className="wallChoice"><strong>Lock screen video</strong><div><label className="uploadButton">Choose video<input type="file" accept="video/mp4,video/webm" onChange={e=>{const f=e.target.files?.[0];if(f)void saveCustomWallpaper("lock",f);e.currentTarget.value=""}}/></label><button onClick={()=>void clearCustomWallpaper("lock")}>Reset</button></div></div><div className="wallChoice"><strong>Home screen video</strong><div><label className="uploadButton">Choose video<input type="file" accept="video/mp4,video/webm" onChange={e=>{const f=e.target.files?.[0];if(f)void saveCustomWallpaper("home",f);e.currentTarget.value=""}}/></label><button onClick={()=>void clearCustomWallpaper("home")}>Reset</button></div></div></div><div className="wallChoice"><strong>Boot video</strong><div><label className="uploadButton">Choose video<input type="file" accept="video/mp4,video/webm" onChange={e=>{const f=e.target.files?.[0];if(f)void saveBootVideo(f);e.currentTarget.value=""}}/></label><button onClick={()=>void clearBootVideo()}>Reset</button></div></div><p className="settingHint">Your boot video plays when visitors open the site, before the lock screen. Muted autoplay is used for browser compatibility.</p><p className="uploadStatus">{uploadMessage || (wallpaperReady?"Wallpaper library ready.":"Loading saved wallpapers…")}</p></>}</div>}
+        {screen==="settings" && <div className="settingsView"><p className="eyebrow">PERSONALIZE YOUR DEVICE</p><h3>Administrator</h3>{!adminAuthenticated?<div className="wallpaperGate"><p>Sign in to manage the shared PROFILE.OS experience.</p><input type="password" value={adminPassword} onChange={e=>setAdminPassword(e.target.value)} placeholder="Admin password" autoComplete="current-password"/><button onClick={()=>void adminLogin()}>Secure admin login</button><small>{adminMessage}</small></div>:<><p className="settingHint">Authenticated admin session. Changes can be published to every visitor.</p><button className="panelAction" onClick={()=>void publishGlobalConfig()} disabled={globalSaving}>{globalSaving?"Publishing…":"Publish settings to all visitors"}</button><button className="panelAction" onClick={()=>void adminLogout()}>Sign out admin</button><small>{adminMessage}</small><div className="settingRow"><div><strong>Appearance</strong><small>Adaptive dark / light theme</small></div><button className="switch" onClick={()=>setDark(v=>!v)}>{dark?"Dark":"Light"}</button></div><div className="settingRow"><div><strong>Brightness</strong><small>Interface brightness</small></div><input type="range" min="45" max="100" value={brightness} onChange={e=>setBrightness(+e.target.value)}/></div><h3>App icon studio</h3><p className="settingHint">Choose a custom image for any built-in or website app. Icons are uploaded to shared Netlify storage.</p><div className="iconStudio">{["Terminal","Projects","About","Skills","Experience","Social","Music","Settings","YouTube","GitHub","Instagram","Email","Browser",...customApps.map(a=>a.name)].map(name=><div className="iconStudioRow" key={name}><div className="iconStudioPreview">{customIcons[name]?<img src={customIcons[name]} alt=""/>:<span>{name.slice(0,1)}</span>}<strong>{name}</strong></div><label className="uploadButton">Change icon<input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" onChange={e=>{const f=e.target.files?.[0];if(f)saveAppIcon(name,f);e.currentTarget.value="";}}/></label><button className="miniReset" onClick={()=>setCustomIcons(v=>{const next={...v};delete next[name];return next;})}>Reset</button></div>)}</div><h3>Website apps</h3><p className="settingHint">Add shortcuts only for websites with a real URL. They will open directly from your app drawer.</p><div className="websiteAppForm"><input value={newAppName} onChange={e=>setNewAppName(e.target.value)} placeholder="App name"/><input value={newAppUrl} onChange={e=>setNewAppUrl(e.target.value)} placeholder="https://example.com" inputMode="url"/><button onClick={addWebsiteApp}>Add website app</button></div>{customApps.map(app=><div className="settingRow" key={app.url}><div><strong>{app.name}</strong><small>{app.url}</small></div><button className="miniReset" onClick={()=>setCustomApps(v=>v.filter(x=>x.url!==app.url))}>Remove</button></div>)}<h3>Music library</h3><p className="settingHint">Add audio files and optional cover artwork. Uploaded to shared storage (4 MB per file).</p><label className="uploadButton songUpload">＋ Add songs<input type="file" accept="audio/*" multiple onChange={e=>{void addSongs(e.target.files);e.currentTarget.value="";}}/></label>{customSongs.map(song=><div className="settingRow" key={song.key}><div className="songAdminInfo">{song.coverUrl?<img className="songCoverThumb" src={song.coverUrl} alt=""/>:<span className="songCoverThumb songCoverEmpty">♫</span>}<span><strong>{song.name}</strong><small>{activeSong?.key===song.key&&isPlaying?"Now playing":"Uploaded track"}</small></span></div><label className="miniReset">Cover<input type="file" accept="image/png,image/jpeg,image/webp,image/gif" onChange={e=>{const f=e.target.files?.[0];if(f)void saveSongCover(song.key,f);e.currentTarget.value="";}}/></label><button className="miniReset" onClick={()=>playSong(song)}>Play</button><button className="miniReset" onClick={()=>void removeSong(song.key)}>Remove</button></div>)}<h3>Bundled wallpapers</h3><div className="wallpaperChoices">{[{id:"nocturne",name:"Nocturne"},{id:"aurora",name:"Aurora Drift"}].map(w=><div className="wallChoice" key={w.id}><strong>{w.name}</strong><div><button onClick={()=>{setLockWallpaper(w.id as WallpaperId);void clearCustomWallpaper("lock")}}>Set lock</button><button onClick={()=>{setHomeWallpaper(w.id as WallpaperId);void clearCustomWallpaper("home")}}>Set home</button></div></div>)}</div><h3>Personal video wallpapers</h3><p className="settingHint">Upload MP4 or WebM · up to 4 MB per file · shared with all visitors after publishing.</p><div className="wallpaperChoices"><div className="wallChoice"><strong>Lock screen video</strong><div><label className="uploadButton">Choose video<input type="file" accept="video/mp4,video/webm" onChange={e=>{const f=e.target.files?.[0];if(f)void saveCustomWallpaper("lock",f);e.currentTarget.value=""}}/></label><button onClick={()=>void clearCustomWallpaper("lock")}>Reset</button></div></div><div className="wallChoice"><strong>Home screen video</strong><div><label className="uploadButton">Choose video<input type="file" accept="video/mp4,video/webm" onChange={e=>{const f=e.target.files?.[0];if(f)void saveCustomWallpaper("home",f);e.currentTarget.value=""}}/></label><button onClick={()=>void clearCustomWallpaper("home")}>Reset</button></div></div></div><div className="wallChoice"><strong>Boot video</strong><div><label className="uploadButton">Choose video<input type="file" accept="video/mp4,video/webm" onChange={e=>{const f=e.target.files?.[0];if(f)void saveBootVideo(f);e.currentTarget.value=""}}/></label><button onClick={()=>void clearBootVideo()}>Reset</button></div></div><p className="settingHint">Your boot video plays when visitors open the site, before the lock screen. Muted autoplay is used for browser compatibility.</p><p className="uploadStatus">{uploadMessage || (wallpaperReady?"Wallpaper library ready.":"Loading saved wallpapers…")}</p></>}</div>}
         
         
-        {screen==="music" && <div className="contentView"><p className="eyebrow">LOCAL AUDIO / PLAYER</p><h1>Soundtrack<br/>your session<span>.</span></h1><p>The player is wired for local tracks. Add your own MP3 files to <code>public/music/</code> using these filenames. Selected track: <strong>track-0{musicTrack+1}.mp3</strong>.</p><div className="musicTrack"><span>01</span><div><strong>Night Drive</strong><small>track-01.mp3</small></div><button className="musicAction" onClick={()=>{setMusicTrack(0);window.setTimeout(()=>void audioRef.current?.play().catch(()=>{}),80);}}>PLAY</button></div><div className="musicTrack"><span>02</span><div><strong>After Hours</strong><small>track-02.mp3</small></div><button className="musicAction" onClick={()=>{setMusicTrack(1);window.setTimeout(()=>void audioRef.current?.play().catch(()=>{}),80);}}>PLAY</button></div><div className="musicTrack"><span>03</span><div><strong>Focus Mode</strong><small>track-03.mp3</small></div><button className="musicAction" onClick={()=>{setMusicTrack(2);window.setTimeout(()=>void audioRef.current?.play().catch(()=>{}),80);}}>PLAY</button></div>{customSongs.map(song=><div className="musicTrack" key={song.key}><span>＋</span><div><strong>{song.name}</strong><small>Added from Settings</small></div><button className="musicAction" onClick={()=>playCustomSong(song)}>PLAY</button></div>)}<div className="musicControls"><button onClick={()=>controlMusic("previous")}>PREVIOUS</button><button onClick={()=>audioRef.current?.paused?void audioRef.current?.play().catch(()=>{}):audioRef.current?.pause()}>{"PLAY / PAUSE"}</button><button onClick={()=>controlMusic("next")}>NEXT</button></div></div>}
+        {screen==="music" && <div className="contentView"><p className="eyebrow">PERSONAL MUSIC LIBRARY</p><h1>Soundtrack<br/>your session<span>.</span></h1>{activeSong?<div className="nowPlayingCard">{activeSong.coverUrl?<img className="nowPlayingCover" src={activeSong.coverUrl} alt={`${activeSong.name} cover`}/>:<div className="nowPlayingCover coverPlaceholder">♫</div>}<div className="nowPlayingMeta"><small>{isPlaying?"NOW PLAYING":"SELECTED TRACK"}</small><strong>{activeSong.name}</strong><span>{musicTrack+1} OF {playlist.length} TRACKS</span></div></div>:<div className="emptyMusic"><span>♫</span><strong>Your library is empty.</strong><p>Open Settings to upload tracks to your shared music library.</p><button className="musicAction" onClick={()=>setScreen("settings")}>OPEN SETTINGS</button></div>}{playlist.map((song,index)=><div className={`musicTrack ${musicTrack===index?"activeMusicTrack":""}`} key={song.key}>{song.coverUrl?<img className="musicListCover" src={song.coverUrl} alt=""/>:<span className="musicListGlyph">♫</span>}<div><strong>{song.name}</strong><small>{index<3?"Included track": "Uploaded track"}{musicTrack===index?(isPlaying?" · Playing":" · Selected"):""}</small></div><button className="musicAction" onClick={()=>playSong(song)}>{musicTrack===index&&isPlaying?"PLAYING":"PLAY"}</button></div>)}<div className="musicControls"><button onClick={()=>controlMusic("previous")} disabled={!playlist.length}>PREVIOUS</button><button onClick={()=>isPlaying?controlMusic("pause"):controlMusic("play")} disabled={!playlist.length}>{isPlaying?"PAUSE":"PLAY"}</button><button onClick={()=>controlMusic("next")} disabled={!playlist.length}>NEXT</button></div></div>}
       </motion.section>}
     </AnimatePresence>
     {panel && <motion.div className="systemPanel" initial={{y:"-100%"}} animate={{y:0}} exit={{y:"-100%"}}>
       <div className="panelHeader"><span>{panel==="notifications"?"Notifications":"Control centre"}</span><button onClick={()=>setPanel(null)}><X/></button></div>
-      {panel==="notifications" ? <><div className="notification"><Bell/><div><strong>Welcome to PROFILE.OS</strong><p>Your personal operating system is ready to explore.</p><small>Just now</small></div></div><div className="notification"><Music2/><div><strong>PROFILE.OS media</strong><p>Open your local player and continue your soundtrack.</p><small>System · Available</small></div></div><button className="panelAction" onClick={()=>setScreen("music")}>Open music</button><button className="panelAction" onClick={()=>setPanel("control")}>Quick settings →</button></> :
-      <><div className="quickGrid">{(["wifi","bluetooth","data","airplane"] as const).map(k=><button className={toggles[k]?"quickTile on":"quickTile"} key={k} onClick={()=>setToggles(v=>({...v,[k]:!v[k]}))}>{k==="wifi"?<Wifi/>:k==="bluetooth"?<Bluetooth/>:k==="data"?<Signal/>:<Globe/>}<span>{k==="data"?"Mobile data":k[0].toUpperCase()+k.slice(1)}</span><small>{toggles[k]?"On":"Off"}</small></button>)}</div><div className="sliderRow"><Sun/><input type="range" min="45" max="100" value={brightness} onChange={e=>setBrightness(+e.target.value)}/></div><div className="sliderRow"><Volume2/><input type="range" min="0" max="100" value={volume} onChange={e=>setVolume(+e.target.value)}/></div><button className="panelAction" onClick={()=>setDark(v=>!v)}>{dark?"Switch to light mode":"Switch to dark mode"}</button><button className="panelAction" onClick={()=>setPanel("notifications")}>← Notifications</button></>}
+      {panel==="notifications" ? <><div className="notificationHeaderActions"><span>{notifications.length?`${notifications.length} recent notifications`:"All caught up"}</span><button onClick={()=>setNotifications([])} disabled={!notifications.length}>Clear all</button></div>{notifications.length?notifications.map(item=><button className="notification notificationButton" key={item.id} onClick={()=>{setPanel(null);if(item.target)setScreen(item.target);}}><Bell/><div><strong>{item.title}</strong><p>{item.message}</p><small>{item.time}</small></div></button>):<div className="emptyNotifications"><Bell/><strong>No new notifications</strong><p>App activity and music events will appear here.</p></div>}<button className="panelAction" onClick={()=>{setPanel(null);setScreen("music")}}>Open music</button><button className="panelAction" onClick={()=>setPanel("control")}>Quick settings →</button></> : <><div className="quickGrid">{(["wifi","bluetooth","data","airplane"] as const).map(k=><button className={toggles[k]?"quickTile on":"quickTile"} key={k} onClick={()=>setToggles(v=>({...v,[k]:!v[k]}))}>{k==="wifi"?<Wifi/>:k==="bluetooth"?<Bluetooth/>:k==="data"?<Signal/>:<Globe/>}<span>{k==="data"?"Mobile data":k[0].toUpperCase()+k.slice(1)}</span><small>{toggles[k]?"On":"Off"}</small></button>)}</div><div className="sliderRow"><Sun/><input type="range" min="45" max="100" value={brightness} onChange={e=>setBrightness(+e.target.value)}/></div><div className="sliderRow"><Volume2/><input type="range" min="0" max="100" value={volume} onChange={e=>setVolume(+e.target.value)}/></div><button className="panelAction" onClick={()=>setDark(v=>!v)}>{dark?"Switch to light mode":"Switch to dark mode"}</button><button className="panelAction" onClick={()=>setPanel("notifications")}>← Notifications</button></>}
     </motion.div>}
     <button className="edgeHandle" aria-label="Open notifications" onClick={()=>setPanel(panel?null:"notifications")}/>
     {screen!=="boot" && screen!=="lock" && <button className="homeIndicator" aria-label="Go home" onClick={()=>setScreen("home")}/>}
