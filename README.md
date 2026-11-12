@@ -7,14 +7,14 @@ A phone-like personal operating system wrapped around the original interactive d
 - Boot → lock screen → swipe-to-unlock → clean wallpaper-only home → swipe up to widgets → swipe up again to the app drawer.
 - Home screen intentionally has no app grid or profile tile; the wallpaper is the main experience.
 - Widgets include a live 12-hour clock, date/calendar, local weather (browser location permission required), and the exact Lanyard presence card for Discord user `1237229822371958908`.
-- App drawer has two horizontally swipeable pages and Work/Social folder shortcuts.
+- App drawer presents all built-in and custom apps in one vertically scrollable page; no folders or pagination.
 - Separate bundled video wallpapers for lock and home screens, with fallback posters.
 - Gesture navigation, animated page transitions, notifications and a simulated quick-settings panel.
 - Adaptive dark/light appearance, brightness and volume controls.
-- Original terminal portfolio restored as a full app: ASCII banner, command history, arrow-key history navigation, Tab autocomplete, quick command chips, terminal palettes and easter eggs.
+- Refined interactive terminal: ASCII banner, command history, arrow-key history navigation, Tab autocomplete, quick command chips, terminal palettes and easter eggs. Portfolio commands print information in the terminal; use `open <app>` for explicit app navigation.
 - Portfolio apps for About, Projects, Skills, Experience, Social, GitHub, YouTube, Settings and Music.
 - Lanyard presence card is embedded directly from `lanyard.cnrad.dev`; live status text also refreshes through the public Lanyard API.
-- Local audio player wired to three user-provided MP3 paths; the audio files are not bundled.
+- Shared local audio player includes the bundled tracks Night Changes, Finding Her and Dil Tu Jaan Tu, plus admin-uploaded tracks.
 
 ## Run locally
 
@@ -153,3 +153,12 @@ The included Netlify Function upload endpoint accepts image/audio/video media up
 ### Important platform note
 
 The public website works for visitors on mobile and desktop. The shared admin backend in this build is specifically implemented for Netlify (Netlify Functions + Netlify Blobs). Moving the site to another host requires porting those server functions and persistent storage.
+
+
+## Latest visual and interaction updates
+
+- Improved light-mode contrast and surfaces, with a refined terminal palette and app cards.
+- Removed Work/Social folders and app drawer pagination; the drawer scrolls vertically to reveal additional apps.
+- Bundled song labels now use the actual track names: Night Changes, Finding Her and Dil Tu Jaan Tu.
+- Terminal commands such as `projects`, `skills`, `experience`, `socials`, `about` and `github` print their information in the terminal. Use `open projects` or `open <app>` for navigation.
+- Projects automatically scans the public, non-fork GitHub repositories for `FANGUYSS` and displays cards with descriptions, languages and star counts.

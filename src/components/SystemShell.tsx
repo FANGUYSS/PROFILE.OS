@@ -32,9 +32,9 @@ export default function SystemShell() {
   const [customSongs,setCustomSongs] = useState<Array<{name:string;url:string;key:string;coverUrl?:string}>>([]);
   const [notifications,setNotifications] = useState<Array<{id:number;title:string;message:string;time:string;target?:Screen}>>([]);
   const bundledSongs = [
-    {name:"Night Drive",url:"/music/track-01.mp3",key:"bundled-1",coverUrl:"/music/artwork/track-01.webp"},
-    {name:"After Hours",url:"/music/track-02.mp3",key:"bundled-2",coverUrl:"/music/artwork/track-02.webp"},
-    {name:"Focus Mode",url:"/music/track-03.mp3",key:"bundled-3",coverUrl:"/music/artwork/track-03.webp"}
+    {name:"Night Changes",url:"/music/track-01.mp3",key:"bundled-1",coverUrl:"/music/artwork/track-01.webp"},
+    {name:"Finding Her",url:"/music/track-02.mp3",key:"bundled-2",coverUrl:"/music/artwork/track-02.webp"},
+    {name:"Dil Tu Jaan Tu",url:"/music/track-03.mp3",key:"bundled-3",coverUrl:"/music/artwork/track-03.webp"}
   ];
   const playlist = [...bundledSongs,...customSongs];
   const activeSong = playlist[musicTrack] || null;
@@ -57,8 +57,6 @@ export default function SystemShell() {
   const [weatherError,setWeatherError] = useState("Allow location for local weather");
   const [repos,setRepos] = useState<Array<{name:string;html_url:string;description:string|null;language:string|null;stargazers_count:number;fork:boolean}>>([]);
   const [repoLoading,setRepoLoading] = useState(false);
-  const [appPage,setAppPage] = useState(0);
-  const [openFolder,setOpenFolder] = useState<"work"|"social"|null>(null);
   const touchStart = useRef({ x: 0, y: 0, time: 0 });
 
   useEffect(() => {
@@ -198,10 +196,19 @@ export default function SystemShell() {
   useEffect(()=>{
     if(screen!=="projects")return;
     let alive=true;setRepoLoading(true);
-    fetch("https://api.github.com/users/FANGUYSS/repos?per_page=100&sort=updated")
-      .then(r=>{if(!r.ok)throw new Error("GitHub API unavailable");return r.json();})
-      .then(data=>{if(alive&&Array.isArray(data))setRepos(data.filter((r:any)=>!r.fork));})
-      .catch(()=>{if(alive)setRepos([]);}).finally(()=>{if(alive)setRepoLoading(false)});
+    const scanRepositories=async()=>{
+      const all:Array<{name:string;html_url:string;description:string|null;language:string|null;stargazers_count:number;fork:boolean}>=[];
+      for(let page=1;page<=10;page++){
+        const response=await fetch(`https://api.github.com/users/FANGUYSS/repos?per_page=100&page=${page}&sort=updated`);
+        if(!response.ok)throw new Error("GitHub API unavailable");
+        const batch=await response.json();
+        if(!Array.isArray(batch))throw new Error("Unexpected GitHub response");
+        all.push(...batch.filter((repo:any)=>!repo.fork));
+        if(batch.length<100)break;
+      }
+      if(alive)setRepos(all);
+    };
+    scanRepositories().catch(()=>{if(alive)setRepos([])}).finally(()=>{if(alive)setRepoLoading(false)});
     return()=>{alive=false};
   },[screen]);
   useEffect(()=>{
@@ -273,7 +280,7 @@ export default function SystemShell() {
     if(screen==="home"&&dx< -65){setScreen("widgets");return;}
     if(screen==="widgets"&&dx>65){setScreen("home");return;}
     if(screen==="widgets"&&absX>65){setPage(current=>Math.max(0,Math.min(1,current+(dx<0?1:-1))));return;}
-    if(screen==="drawer"&&absX>65){setAppPage(current=>Math.max(0,Math.min(1,current+(dx<0?1:-1))));}
+    
   };
 
   const activeLock = screen==="boot" || screen==="lock";
@@ -316,11 +323,11 @@ export default function SystemShell() {
         </div>
         <div className="widgetsFooter"><span>Swipe up to open applications</span><ChevronUp size={18}/></div>
       </motion.section>}
-      {screen==="drawer" && <motion.section key="drawer" className="appPage appDrawer" initial={{y:40,opacity:0}} animate={{y:0,opacity:1}} exit={{y:30,opacity:0}}><div className="pageTitle">Applications <button onClick={()=>setScreen("widgets")}><X/></button></div><div className="drawerGrid">{(appPage===0?[["Terminal","terminal"],["Projects","projects"],["About","about"],["Skills","skills"],["Experience","experience"],["Social","social"],["Music","music"],["Settings","settings"]]:[["YouTube","youtube"],["GitHub","github"],["Instagram","social"],["Email","social"],["Browser","github"],["Music","music"],["Settings","settings"]].concat(customApps.map(app=>[app.name,app.url] as [string,string]))).map(([n,a])=><button className="appIcon" key={n} onClick={()=>{if(a.startsWith("http://")||a.startsWith("https://")){launchWebsite(a);return;}if(n==="YouTube"){window.open("https://www.youtube.com","_blank","noopener,noreferrer");return;}if(n==="GitHub"){window.open("https://github.com/FANGUYSS","_blank","noopener,noreferrer");return;}if(n==="Browser"){window.open("https://www.google.com","_blank","noopener,noreferrer");return;}if(n==="Instagram"){window.open("https://instagram.com/fanguyss","_blank","noopener,noreferrer");return;}if(n==="Email"){window.location.href="mailto:fanguyss523@gmail.com";return;}openApp(a as Screen)}}>{customIcons[n]?<img className="customAppIcon" src={customIcons[n]} alt=""/>:<span className="appGlyph">{n==="Terminal"||n==="Developer"?"›_":n==="Settings"?"⚙":n==="Music"||n==="Media"?"♫":n==="YouTube"?"▶":n==="GitHub"?"⌘":n==="Instagram"?"◎":n==="Email"?"✉":n==="Browser"?"🌐":n==="Calendar"?"▦":n==="Weather"?"☀":n==="Camera"?"◉":n==="Photos"?"▧":n==="Files"?"▤":n==="Work"?"▦":"✳"}</span>}{n}</button>)}</div><div className="pageDots"><button className={appPage===0?"active":""} onClick={()=>setAppPage(0)}/><button className={appPage===1?"active":""} onClick={()=>setAppPage(1)}/></div><div className="folderShelf"><button onClick={()=>setOpenFolder("work")}>▣ <span>Work folder</span></button><button onClick={()=>setOpenFolder("social")}>▦ <span>Social folder</span></button></div>{openFolder&&<div className="folderOverlay" onClick={()=>setOpenFolder(null)}><div className="folderModal" onClick={e=>e.stopPropagation()}><div className="pageTitle">{openFolder==="work"?"Work":"Social"}<button onClick={()=>setOpenFolder(null)}><X/></button></div><div className="folderItems">{(openFolder==="work"?[["Projects","projects"],["Experience","experience"],["Skills","skills"],["Terminal","terminal"]]:[["Social links","social"],["GitHub","github"],["Discord","social"]]).map(([label,target])=><button key={label} onClick={()=>{setOpenFolder(null);if(target==="github"){window.open("https://github.com/FANGUYSS","_blank","noopener,noreferrer");return;}openApp(target as Screen)}}><span className="appGlyph">{label==="Terminal"?"›_":label==="Projects"?"▦":"✳"}</span>{label}</button>)}</div></div></div>}</motion.section>}
+      {screen==="drawer" && <motion.section key="drawer" className="appPage appDrawer" initial={{y:40,opacity:0}} animate={{y:0,opacity:1}} exit={{y:30,opacity:0}}><div className="pageTitle">Applications <button onClick={()=>setScreen("widgets")}><X/></button></div><div className="drawerGrid">{[["Terminal","terminal"],["Projects","projects"],["About","about"],["Skills","skills"],["Experience","experience"],["Social","social"],["Music","music"],["Settings","settings"],["YouTube","youtube"],["GitHub","github"],["Instagram","social"],["Email","social"],["Browser","github"],...customApps.map(app=>[app.name,app.url] as [string,string])].map(([n,a])=><button className="appIcon" key={n} onClick={()=>{if(a.startsWith("http://")||a.startsWith("https://")){launchWebsite(a);return;}if(n==="YouTube"){window.open("https://www.youtube.com","_blank","noopener,noreferrer");return;}if(n==="GitHub"){window.open("https://github.com/FANGUYSS","_blank","noopener,noreferrer");return;}if(n==="Browser"){window.open("https://www.google.com","_blank","noopener,noreferrer");return;}if(n==="Instagram"){window.open("https://instagram.com/fanguyss","_blank","noopener,noreferrer");return;}if(n==="Email"){window.location.href="mailto:fanguyss523@gmail.com";return;}openApp(a as Screen)}}>{customIcons[n]?<img className="customAppIcon" src={customIcons[n]} alt=""/>:<span className="appGlyph">{n==="Terminal"?"›_":n==="Settings"?"⚙":n==="Music"?"♫":n==="YouTube"?"▶":n==="GitHub"?"⌘":n==="Instagram"?"◎":n==="Email"?"✉":n==="Browser"?"🌐":"✳"}</span>}{n}</button>)}</div></motion.section>}
       {["terminal","projects","about","skills","experience","social","settings","youtube","github","music"].includes(screen) && <motion.section key={screen} className="appWindow" initial={{y:35,opacity:0}} animate={{y:0,opacity:1}} exit={{y:30,opacity:0}}>
         <div className="appTitle"><button onClick={()=>setScreen("drawer")}>‹</button><strong>{screen==="terminal"?"Terminal":screen==="projects"?"Projects":screen==="about"?"About":screen==="skills"?"Skills":screen==="experience"?"Experience":screen==="social"?"Social":screen==="settings"?"Settings":screen==="music"?"Music":screen==="youtube"?"YouTube":"GitHub"}</strong><span>PROFILE.OS</span></div>
         {screen==="terminal" && <TerminalApp onHome={()=>setScreen("home")} onTheme={()=>setDark(v=>!v)} onOpenApp={(app)=>setScreen(app as Screen)} onMediaCommand={controlMusic}/>}
-        {screen==="projects" && <div className="contentView projectsMinimal"><pre className="projectsFrame">┌─ PROJECTS ───────────────────────────────────┐</pre><p>I could list every project here...</p><p>But everything worth exploring lives<br/>where the code actually does.</p><a className="projectsGithub" href="https://github.com/FANGUYSS" target="_blank" rel="noreferrer">→ github.com/FANGUYSS</a><pre className="projectsFrame projectsBottom">└─────────────────────────────────────────────┘</pre></div>}
+        {screen==="projects" && <div className="contentView projectsMinimal"><p className="eyebrow">GITHUB / PUBLIC REPOSITORIES</p><h1>Selected<br/>work<span>.</span></h1><p className="repoIntro">Live public repositories from FANGUYSS, sorted by recent activity.</p>{repoLoading?<div className="repoState">Scanning GitHub repositories…</div>:repos.length?<div className="repoGrid">{repos.map(repo=><a className="repoCard" key={repo.name} href={repo.html_url} target="_blank" rel="noreferrer"><div className="repoCardTop"><strong>{repo.name}</strong><span>↗</span></div><p>{repo.description||"No description provided."}</p><div className="repoMeta">{repo.language&&<span>{repo.language}</span>}<span>★ {repo.stargazers_count}</span></div></a>)}</div>:<div className="repoState">GitHub repositories could not be loaded right now. <a href="https://github.com/FANGUYSS?tab=repositories" target="_blank" rel="noreferrer">Browse all repositories ↗</a></div>}<a className="projectsGithub" href="https://github.com/FANGUYSS?tab=repositories" target="_blank" rel="noreferrer">→ github.com/FANGUYSS</a></div>}
         {screen==="about" && <div className="contentView"><p className="eyebrow">ABOUT THE CREATOR</p><h1>Hey, I&apos;m<br/>FANGUYSS<span>.</span></h1><p>Independent developer crafting web products, tools and digital experiences.</p><a href="https://github.com/FANGUYSS" target="_blank" rel="noreferrer">GitHub profile ↗</a></div>}
         {screen==="skills" && <div className="contentView"><p className="eyebrow">CAPABILITIES / TOOLBOX</p><h1>What I<br/>work with<span>.</span></h1><p>Tools and technologies I use while learning, experimenting and building.</p>{["JavaScript & TypeScript","React & Next.js","Node.js & APIs","HTML, CSS & responsive UI","Discord bots & integrations","Git, GitHub & deployment","Linux, Termux & CLI workflows"].map((v,i)=><div className="listRow" key={v}><span>0{i+1}</span><strong>{v}</strong><span>↗</span></div>)}</div>}
         {screen==="experience" && <div className="contentView"><p className="eyebrow">BUILD LOG / JOURNEY</p><h1>Learning by<br/>building<span>.</span></h1><p>A project-led journey through web development, automation, communities and open-source experiments.</p>{[["CURRENT","PROFILE.OS — personal operating system portfolio"],["RECENT","Open-source experiments — bots, web apps and developer tools"],["ONGOING","Web apps, APIs, hosting and deployment experiments"],["ALWAYS","Learning, shipping, debugging and iterating"]].map(([d,v])=><div className="listRow" key={d}><span>{d}</span><strong>{v}</strong></div>)}</div>}

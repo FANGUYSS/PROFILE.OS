@@ -163,3 +163,74 @@ button:focus-visible,a:focus-visible,input:focus-visible{outline:2px solid var(-
 .notificationHeaderActions button{border:0;background:transparent;color:inherit;font:inherit;padding:8px}
 .notificationButton{width:100%;text-align:left;cursor:pointer;font:inherit;color:inherit}
 .notificationButton:focus-visible,.notificationHeaderActions button:focus-visible{outline:2px solid currentColor;outline-offset:3px}
+
+
+/* PROFILE.OS refresh: brighter surfaces, continuous app drawer and refined terminal */
+:root[data-theme="light"]{
+  --bg:#eef0f5;--fg:#171923;--muted:#555b6b;
+  --panel:rgba(250,251,255,.88);--line:rgba(35,42,62,.16);--accent:#5945c7;
+  --glass-bg:rgba(250,251,255,.82);--glass-border:rgba(42,48,68,.18);
+  --glass-shadow:0 18px 55px rgba(38,43,65,.13);
+}
+:root[data-theme="light"] .wallpaperDim{background:rgba(255,255,255,.13)}
+:root[data-theme="light"] .appPage,
+:root[data-theme="light"] .appWindow{
+  background:rgba(247,248,252,.88);color:#171923;
+  border:1px solid rgba(45,50,70,.14);box-shadow:0 18px 60px rgba(35,40,60,.12)
+}
+:root[data-theme="light"] .widget,
+:root[data-theme="light"] .glassCard,
+:root[data-theme="light"] .glassDock,
+:root[data-theme="light"] .appGlyph{
+  background:rgba(255,255,255,.78);border-color:rgba(40,45,65,.16);
+  box-shadow:0 8px 28px rgba(40,45,65,.08);color:#202332
+}
+:root[data-theme="light"] .appIcon{color:#202332}
+:root[data-theme="light"] .appGlyph{color:#5140b5}
+:root[data-theme="light"] .pageTitle button,
+:root[data-theme="light"] .appTitle button{color:#202332}
+:root[data-theme="light"] .terminalApp{
+  --term:#176b4b;--term-dim:#5d776d;--term-accent:#5945c7;
+  background:rgba(250,251,255,.98);color:#263044;border-color:rgba(45,50,70,.18);
+  box-shadow:0 16px 45px rgba(35,40,60,.12)
+}
+:root[data-theme="light"] .terminalToolbar{background:#edf0f8;color:#394258;border-color:#d9deeb}
+:root[data-theme="light"] .terminalMeta{color:#667087;border-color:#e2e5ee}
+:root[data-theme="light"] .terminalCommand,
+:root[data-theme="light"] .terminalInputLine{color:#252d40}
+:root[data-theme="light"] .terminalResult,
+:root[data-theme="light"] .terminalResult.muted{color:#465168}
+:root[data-theme="light"] .terminalInputLine input{color:#20283b}
+:root[data-theme="light"] .terminalSuggestions{border-color:#e1e5ef}
+:root[data-theme="light"] .terminalSuggestions button{background:#f0f2fa;border-color:#dce1ee;color:#3e4860}
+:root[data-theme="light"] .terminalFooter{border-color:#e1e5ef;color:#69738a}
+.appDrawer{overflow-y:auto!important;overscroll-behavior:contain;padding-bottom:calc(90px + env(safe-area-inset-bottom))!important}
+.appDrawer .drawerGrid{grid-template-columns:repeat(4,minmax(0,1fr));gap:25px 8px;margin-bottom:28px}
+.appDrawer .appIcon{min-width:0;padding:3px 0 8px}
+.appDrawer .appIcon>span,.appDrawer .appIcon>img{flex-shrink:0}
+.repoIntro{margin-bottom:20px}
+.repoGrid{display:grid;grid-template-columns:1fr;gap:12px;margin:20px 0}
+.repoCard{padding:17px;border:1px solid var(--line);border-radius:18px;background:var(--panel);transition:transform .18s,border-color .18s}
+.repoCardTop{display:flex;justify-content:space-between;gap:12px;align-items:center}
+.repoCardTop strong{font-size:15px;overflow-wrap:anywhere}
+.repoCardTop span{color:var(--accent)}
+.repoCard p{font-size:12px;line-height:1.55;margin:9px 0 14px}
+.repoMeta{display:flex;gap:14px;color:var(--muted);font:10px 'DM Mono',monospace}
+.repoState{padding:18px;border:1px solid var(--line);border-radius:16px;background:var(--panel);color:var(--muted);font-size:13px;line-height:1.6}
+.repoState a{color:var(--accent)}
+.terminalApp{border-radius:22px;box-shadow:0 22px 65px rgba(0,0,0,.22)}
+.terminalToolbar{height:46px;padding:0 15px}
+.terminalOutput{height:min(48vh,500px);min-height:290px;padding:17px 15px}
+.terminalEntry{padding-bottom:8px;border-bottom:1px solid rgba(130,145,175,.10)}
+.terminalInputLine{padding-top:5px}
+.terminalSuggestions{padding:11px 12px}
+.terminalSuggestions button{padding:7px 11px;font-size:10px}
+.terminalFooter{padding:10px 13px}
+@media(min-width:700px){.repoGrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+:root[data-theme="light"] .statusBar{color:#202332;text-shadow:none}
+:root[data-theme="light"] .homeIndicator{background:rgba(35,40,55,.55);box-shadow:none}
+:root[data-theme="light"] .lockTop span:last-child,
+:root[data-theme="light"] .lockClock p,
+:root[data-theme="light"] .unlock{color:rgba(25,29,42,.82)}
+:root[data-theme="light"] .lockShortcuts button{color:#202332;background:rgba(255,255,255,.62);border-color:rgba(35,40,55,.2)}
